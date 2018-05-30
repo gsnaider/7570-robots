@@ -19,11 +19,11 @@ num_steps = 1000
 # cantidad de pasos de entrenamiento
 batch_size = 30
 # cantidad de ejemplos por paso
-display_step = 100  # cada cuánto imprime algo por pantalla
+
 # Parámetros para la construcción de la red
-n_hidden_1 = 15  # número de neuronas en la capa oculta 1
-n_hidden_2 = 7  # número de neuronas en la capa oculta 2
-num_classes = 2  # MNIST clases: digitos (0-9 digitos)
+n_hidden_1 = 20  # número de neuronas en la capa oculta 1
+n_hidden_2 = 10  # número de neuronas en la capa oculta 2
+num_classes = 2  # clases: sobrevivio (0-1)
 
 
 # Definimos la red neuronal
@@ -79,33 +79,45 @@ def model_fn(features, labels, mode):
 
     return estim_specs
 
+def get_test_data(path):
+    df = pd.read_csv(path)
+    data = df[['Age', 'SibSp', 'Parch', 'Fare']]
 
-df = pd.read_csv("Titanic/train.csv")
-data = df[['Age', 'SibSp', 'Parch', 'Fare']]
+    # Normalizar datos
+    data = (data - data.mean()) / data.std()
 
-# Normalize data
-data = (data - data.mean()) / data.std()
+    # Mapeamos Sex y Pclass a vectores binarios
+    data = data.join(pd.get_dummies(df['Sex']))
+    data = data.join(pd.get_dummies(df['Pclass']))
 
-data = data.join(pd.get_dummies(df['Sex']))
-data = data.join(pd.get_dummies(df['Pclass']))
-data = data.join(df['Survived'])
+    # Seteamos el promedio del campo en los datos faltantes
+    data = data.fillna(data.mean())
 
-data = data.dropna()
+    return data.values
 
-print(data)
+def get_data(path):
+    df = pd.read_csv(path)
+    data = df[['Age', 'SibSp', 'Parch', 'Fare']]
 
-data_X = data.drop('Survived', axis=1).values
-data_y = data['Survived'].values
+    # Normalizar datos
+    data = (data - data.mean()) / data.std()
 
-print(data_X.shape)
-print(data_y.shape)
+    # Mapeamos Sex y Pclass a vectores binarios
+    data = data.join(pd.get_dummies(df['Sex']))
+    data = data.join(pd.get_dummies(df['Pclass']))
+
+    # Seteamos el promedio en los datos faltantes
+    data = data.fillna(data.mean())
+
+    data_X = data.values
+    data_y = df['Survived'].values
+
+    return (data_X, data_y)
+
+
+(data_X, data_y) = get_data("Titanic/train.csv")
 
 trainX, testX, trainY, testY = train_test_split(data_X, data_y, test_size=0.33, random_state=42)
-
-print(trainX.shape)
-print(testX.shape)
-print(trainY.shape)
-print(testY.shape)
 
 # Construimos un estimador, le decimos que use la función antes definida
 model = tf.estimator.Estimator(model_fn)
@@ -127,3 +139,16 @@ input_fn = tf.estimator.inputs.numpy_input_fn(
 e = model.evaluate(input_fn)
 
 print("Precisión en el conjunto de prueba:", e['accuracy'])
+
+
+# Descomentar para evaluar en set de datos de test e imprimir predicciones
+'''
+data = get_test_data("Titanic/test.csv")
+
+input_fn = tf.estimator.inputs.numpy_input_fn(
+    x={'data': data},
+    batch_size=batch_size, shuffle=False)
+
+for pred in model.predict(input_fn):
+    print(pred)
+'''
