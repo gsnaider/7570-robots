@@ -49,20 +49,21 @@ filenames, labels = _mnist_filenames_and_labels()
 filenames, labels = shuffle(np.array(filenames), np.array(labels))
 
 dataset = tf.data.Dataset.from_tensor_slices((filenames, labels))
-# dataset = dataset.map(_parse_function)
-# dataset = dataset.shuffle(buffer_size=1000)
+dataset = dataset.map(_parse_function)
+dataset = dataset.shuffle(buffer_size=1000)
 
 # The other half of the batch will come from the generator.
-# dataset = dataset.batch(batch_size= BATCH_SIZE // 2)
+dataset = dataset.batch(batch_size= BATCH_SIZE // 2)
 
-# dataset = dataset.repeat()
+dataset = dataset.repeat()
 
 iterator = dataset.make_one_shot_iterator()
-next_images, next_labels = iterator.get_next()
+next = iterator.get_next()
 
 with tf.Session() as sess:
-    print(sess.run(next_labels))
-    images = sess.run(next_images)
-    print(images)
-    # plt.imshow(images, cmap='gray')
-    # plt.show()
+    images, labels = sess.run(next)
+    for i in range(10):
+        image = images[i]
+        print(labels[i])
+        plt.imshow(image, cmap='gray')
+        plt.show()
