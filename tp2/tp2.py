@@ -6,23 +6,21 @@ from __future__ import print_function
 
 # Don't show warning messages
 import os
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 import tensorflow as tf
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-# parámetros ​ usados​ para entrenar la red
+# Parámetros ​ usados​ para entrenar la red
 learning_rate = 0.1  # tasa de aprendizaje
-num_steps = 1000
-# cantidad de pasos de entrenamiento
-batch_size = 30
-# cantidad de ejemplos por paso
+num_steps = 1000  # cantidad de pasos de entrenamiento
+batch_size = 30  # cantidad de ejemplos por paso
 
 # Parámetros para la construcción de la red
 n_hidden_1 = 20  # número de neuronas en la capa oculta 1
-n_hidden_2 = 10  # número de neuronas en la capa oculta 2
+n_hidden_2 = 20  # número de neuronas en la capa oculta 2
 num_classes = 2  # clases: sobrevivio (0-1)
 
 
@@ -79,12 +77,13 @@ def model_fn(features, labels, mode):
 
     return estim_specs
 
-def get_test_data(path):
+
+def get_test_data(path, mean, std):
     df = pd.read_csv(path)
     data = df[['Age', 'SibSp', 'Parch', 'Fare']]
 
     # Normalizar datos
-    data = (data - data.mean()) / data.std()
+    data = (data - mean) / std
 
     # Mapeamos Sex y Pclass a vectores binarios
     data = data.join(pd.get_dummies(df['Sex']))
@@ -95,12 +94,16 @@ def get_test_data(path):
 
     return data.values
 
+
 def get_data(path):
     df = pd.read_csv(path)
     data = df[['Age', 'SibSp', 'Parch', 'Fare']]
 
+    mean = data.mean()
+    std = data.std()
+
     # Normalizar datos
-    data = (data - data.mean()) / data.std()
+    data = (data - mean) / std
 
     # Mapeamos Sex y Pclass a vectores binarios
     data = data.join(pd.get_dummies(df['Sex']))
@@ -112,10 +115,12 @@ def get_data(path):
     data_X = data.values
     data_y = df['Survived'].values
 
-    return (data_X, data_y)
+    # Devolvemos X e y, junto con la media y la desviación estandard
+    # para poder luego ajustar el set de test con esos mismos parámetros.
+    return (data_X, data_y, mean, std)
 
 
-(data_X, data_y) = get_data("Titanic/train.csv")
+(data_X, data_y, mean, std) = get_data("Titanic/train.csv")
 
 trainX, testX, trainY, testY = train_test_split(data_X, data_y, test_size=0.33, random_state=42)
 
@@ -139,11 +144,11 @@ input_fn = tf.estimator.inputs.numpy_input_fn(
 e = model.evaluate(input_fn)
 
 print("Precisión en el conjunto de prueba:", e['accuracy'])
-
+print("Costo final:", e['loss'])
 
 # Descomentar para evaluar en set de datos de test e imprimir predicciones
 '''
-data = get_test_data("Titanic/test.csv")
+data = get_test_data("Titanic/test.csv", mean, std)
 
 input_fn = tf.estimator.inputs.numpy_input_fn(
     x={'data': data},
@@ -151,4 +156,4 @@ input_fn = tf.estimator.inputs.numpy_input_fn(
 
 for pred in model.predict(input_fn):
     print(pred)
-'''
+'''intelli
