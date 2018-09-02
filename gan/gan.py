@@ -14,6 +14,43 @@ TRAINING_DATA_DIR = os.path.join("data", "mnist_png", "training")
 # the generator
 BATCH_SIZE = 60
 
+GEN_HIDDEN_LAYERS = [20, 20, 20, 20, 20]
+DISC_HIDDEN_LAYERS = [20, 20, 20, 20, 20]
+
+
+def generator(latent_space):
+    """
+    Defines the generator network using the latent_space as input.
+    Args:
+        latent_space: input for the generator network
+    Returns:
+        Generated images
+    """
+    net = latent_space
+    for layer in GEN_HIDDEN_LAYERS:
+        net = tf.layers.dense(net, layer, activation=tf.nn.relu)
+
+    output = tf.layers.dense(net, 28 * 28, activation=tf.nn.sigmoid)
+    images = tf.reshape(output, [None, 28, 28])
+    return images
+
+
+def discriminator(images):
+    """Defines the discriminator network
+    Args:
+        images: input images as 28x28 tensors
+    Returns:
+        Logits and classification for each image
+    """
+    net = tf.reshape(images, [None, 28 * 28])
+    for layer in DISC_HIDDEN_LAYERS:
+        net = tf.layers.dense(net, layer, activation=tf.nn.relu)
+
+    logits = tf.layers.dense(net, 1)
+    classification = tf.nn.sigmoid(logits)
+    return logits, classification
+
+
 def _parse_function(filename, label):
     """
     Reads an image from a file, decodes it into a dense tensor, and resizes it to a fixed shape.
@@ -21,7 +58,7 @@ def _parse_function(filename, label):
     image_string = tf.read_file(filename)
     image_decoded = tf.image.decode_png(image_string)
     image_resized = tf.reshape(image_decoded, [28, 28])
-    return image_resized, label
+    return tf.cast(image_resized, tf.float32) / 255, label
 
 
 def _mnist_filenames_and_labels():
