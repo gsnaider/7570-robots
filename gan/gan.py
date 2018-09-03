@@ -39,11 +39,18 @@ def generator(latent_space):
     """
     with tf.variable_scope(GEN_VARIABLE_SCOPE):
         net = latent_space
-        for layer in GEN_HIDDEN_LAYERS:
-            net = tf.layers.dense(net, layer, activation=tf.nn.relu)
+        net = tf.layers.dense(net, 7 * 7 * 2, activation=tf.nn.leaky_relu)
 
-        output = tf.layers.dense(net, 28 * 28, activation=tf.nn.sigmoid)
-        images = tf.reshape(output, [-1, 28, 28])
+        # 7 x 7
+        net = tf.reshape(net, [-1, 7, 7, 2])
+
+        # 14 x 14
+        net = tf.layers.conv2d_transpose(net, 32, kernel_size=5, strides=2,
+                                         activation=tf.nn.leaky_relu, padding='same')
+
+        # 28 x 28
+        images = tf.layers.conv2d_transpose(net, 1, kernel_size=5, strides=2,
+                                            activation=tf.nn.sigmoid, padding='same')
         return images
 
 
@@ -55,11 +62,21 @@ def discriminator(images):
         Logits and prediction for each image
     """
     with tf.variable_scope(DISC_VARIABLE_SCOPE, reuse=tf.AUTO_REUSE):
-        net = tf.reshape(images, [-1, 28 * 28])
-        for layer in DISC_HIDDEN_LAYERS:
-            net = tf.layers.dense(net, layer, activation=tf.nn.relu)
+        net = images
+        for layer in DISC_HIDDEN_LAYERS[:-1]:
+            net = tf.layers.conv2d(net, layer, kernel_size=3,
+                                   activation=tf.nn.leaky_relu, padding='same')
+            net = tf.layers.max_pooling2d(net, 2, 2)
 
-        logits = tf.layers.dense(net, 1)
+        net_shape = net.shape
+        net_reshaped = tf.reshape(net, [-1,
+                                        net_shape[1] * net_shape[2] * net_shape[
+                                            3]])
+
+        fc = tf.layers.dense(net_reshaped, DISC_HIDDEN_LAYERS[-1],
+                             activation=tf.nn.leaky_relu)
+
+        logits = tf.layers.dense(fc, 1)
         prediction = tf.nn.sigmoid(logits)
         return logits, prediction
 
@@ -70,7 +87,7 @@ def _parse_function(filename, label):
     """
     image_string = tf.read_file(filename)
     image_decoded = tf.image.decode_png(image_string)
-    image_resized = tf.reshape(image_decoded, [28, 28])
+    image_resized = tf.reshape(image_decoded, [28, 28, 1])
     return tf.cast(image_resized, tf.float32) / 255, label
 
 
@@ -130,26 +147,25 @@ G_loss = tf.losses.sigmoid_cross_entropy(G_expected, D_fake_logits)
 D_real_expected = tf.zeros_like(D_real_logits)
 D_fake_expected = tf.ones_like(D_fake_logits)
 
-D_real_loss = tf.losses.sigmoid_cross_entropy(D_real_expected, D_real_logits,
-                                              label_smoothing=0.2)
+D_real_loss = tf.losses.sigmoid_cross_entropy(D_real_expected, D_real_logits)
 D_fake_loss = tf.losses.sigmoid_cross_entropy(D_fake_expected, D_fake_logits)
 D_loss = D_real_loss + D_fake_loss
 
 G_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                                 GEN_VARIABLE_SCOPE)
 
-G_optimizer = tf.train.GradientDescentOptimizer(
+G_optimizer = tf.train.AdamOptimizer(
     learning_rate=GEN_LEARNING_RATE).minimize(G_loss, var_list=G_variables)
 
 D_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                                 DISC_VARIABLE_SCOPE)
 
-D_optimizer = tf.train.GradientDescentOptimizer(
+D_optimizer = tf.train.AdamOptimizer(
     learning_rate=DISC_LEARNING_RATE).minimize(D_loss, var_list=D_variables)
 
 tf.summary.scalar("Gen loss", G_loss, family="Generator")
 tf.summary.scalar("Disc loss", D_loss, family="Discriminator")
-tf.summary.image("Gen images", tf.expand_dims(G_images, axis=-1), max_outputs=1)
+tf.summary.image("Gen images", G_images, max_outputs=1)
 
 
 def _generator_step(sess):
