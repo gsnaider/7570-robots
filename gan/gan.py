@@ -9,13 +9,14 @@ from matplotlib import pyplot as plt
 import cv2
 
 TRAINING_DATA_DIR = os.path.join("data", "mnist_png", "training")
+CHECKPOINT_DIR = "checkpoints"
 
 # Number of inputs counting both mnist data and generated data for the discriminator, and number of random inputs for
 # the generator
 BATCH_SIZE = 60
 
-GEN_LEARNING_RATE = 0.1
-DISC_LEARNING_RATE = 0.1
+GEN_LEARNING_RATE = 0.001
+DISC_LEARNING_RATE = 0.001
 
 GEN_HIDDEN_LAYERS = [20, 20, 20, 20, 20]
 DISC_HIDDEN_LAYERS = [20, 20, 20, 20, 20]
@@ -24,6 +25,8 @@ LATENT_SPACE_SHAPE = 100
 
 GEN_VARIABLE_SCOPE = "generator"
 DISC_VARIABLE_SCOPE = "discriminator"
+
+MAX_STEPS = 100000
 
 
 def generator(latent_space):
@@ -134,16 +137,46 @@ D_loss = D_real_loss + D_fake_loss
 G_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                                 GEN_VARIABLE_SCOPE)
 
-print("G_variables ", G_variables)
-
 G_optimizer = tf.train.GradientDescentOptimizer(
     learning_rate=GEN_LEARNING_RATE).minimize(G_loss, var_list=G_variables)
 
 D_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                                 DISC_VARIABLE_SCOPE)
 
-print("D_variables ", D_variables)
-
 D_optimizer = tf.train.GradientDescentOptimizer(
     learning_rate=DISC_LEARNING_RATE).minimize(D_loss, var_list=D_variables)
 
+tf.summary.scalar("Gen loss", G_loss, family="Generator")
+tf.summary.scalar("Disc loss", D_loss, family="Discriminator")
+tf.summary.image("Gen images", tf.expand_dims(G_images, axis=-1), max_outputs=1)
+
+
+def _generator_step(sess):
+    latent_space_np = np.random.randn(BATCH_SIZE, LATENT_SPACE_SHAPE)
+    _, G_loss_np = sess.run([G_optimizer, G_loss],
+                            feed_dict={latent_space: latent_space_np})
+    return G_loss_np
+
+
+def _discriminator_step(sess):
+    latent_space_np = np.random.randn(BATCH_SIZE // 2, LATENT_SPACE_SHAPE)
+    _, D_loss_np = sess.run([D_optimizer, D_loss],
+                            feed_dict={latent_space: latent_space_np})
+    return D_loss_np
+
+
+hooks = [tf.train.StopAtStepHook(num_steps=MAX_STEPS)]
+
+with tf.train.MonitoredTrainingSession(checkpoint_dir=CHECKPOINT_DIR,
+                                       hooks=hooks) as sess:
+    while not sess.should_stop():
+        G_loss_np = _generator_step(sess)
+        D_loss_np = _discriminator_step(sess)
+
+        if (sess.run(step) % 100 == 0):
+            print()
+            print("Step: ", sess.run(step))
+            print("G_loss: ", G_loss_np)
+            print("D_loss: ", D_loss_np)
+
+        sess.run(increment_step)
