@@ -26,7 +26,7 @@ LATENT_SPACE_SHAPE = 100
 GEN_VARIABLE_SCOPE = "generator"
 DISC_VARIABLE_SCOPE = "discriminator"
 
-MAX_STEPS = 100000
+MAX_STEPS = 1000000
 
 
 def generator(latent_space):
@@ -130,7 +130,8 @@ G_loss = tf.losses.sigmoid_cross_entropy(G_expected, D_fake_logits)
 D_real_expected = tf.zeros_like(D_real_logits)
 D_fake_expected = tf.ones_like(D_fake_logits)
 
-D_real_loss = tf.losses.sigmoid_cross_entropy(D_real_expected, D_real_logits)
+D_real_loss = tf.losses.sigmoid_cross_entropy(D_real_expected, D_real_logits,
+                                              label_smoothing=0.2)
 D_fake_loss = tf.losses.sigmoid_cross_entropy(D_fake_expected, D_fake_logits)
 D_loss = D_real_loss + D_fake_loss
 
@@ -155,14 +156,22 @@ def _generator_step(sess):
     latent_space_np = np.random.randn(BATCH_SIZE, LATENT_SPACE_SHAPE)
     _, G_loss_np = sess.run([G_optimizer, G_loss],
                             feed_dict={latent_space: latent_space_np})
-    return G_loss_np
+    if sess.run(step) % 97 == 0:
+        print()
+        print("Step: ", sess.run(step))
+        print("G_loss: ", G_loss_np)
+    sess.run(increment_step)
 
 
 def _discriminator_step(sess):
     latent_space_np = np.random.randn(BATCH_SIZE // 2, LATENT_SPACE_SHAPE)
     _, D_loss_np = sess.run([D_optimizer, D_loss],
                             feed_dict={latent_space: latent_space_np})
-    return D_loss_np
+    if sess.run(step) % 97 == 0:
+        print()
+        print("Step: ", sess.run(step))
+        print("D_loss: ", D_loss_np)
+    sess.run(increment_step)
 
 
 hooks = [tf.train.StopAtStepHook(num_steps=MAX_STEPS)]
@@ -170,13 +179,6 @@ hooks = [tf.train.StopAtStepHook(num_steps=MAX_STEPS)]
 with tf.train.MonitoredTrainingSession(checkpoint_dir=CHECKPOINT_DIR,
                                        hooks=hooks) as sess:
     while not sess.should_stop():
-        G_loss_np = _generator_step(sess)
-        D_loss_np = _discriminator_step(sess)
-
-        if (sess.run(step) % 100 == 0):
-            print()
-            print("Step: ", sess.run(step))
-            print("G_loss: ", G_loss_np)
-            print("D_loss: ", D_loss_np)
-
-        sess.run(increment_step)
+        for _ in range(5):
+            _generator_step(sess)
+        _discriminator_step(sess)
