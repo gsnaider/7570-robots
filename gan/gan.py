@@ -46,11 +46,13 @@ def generator(latent_space):
 
         # 14 x 14
         net = tf.layers.conv2d_transpose(net, 32, kernel_size=5, strides=2,
-                                         activation=tf.nn.leaky_relu, padding='same')
+                                         activation=tf.nn.leaky_relu,
+                                         padding='same')
 
         # 28 x 28
         images = tf.layers.conv2d_transpose(net, 1, kernel_size=5, strides=2,
-                                            activation=tf.nn.sigmoid, padding='same')
+                                            activation=tf.nn.sigmoid,
+                                            padding='same')
         return images
 
 
@@ -147,7 +149,8 @@ G_loss = tf.losses.sigmoid_cross_entropy(G_expected, D_fake_logits)
 D_real_expected = tf.zeros_like(D_real_logits)
 D_fake_expected = tf.ones_like(D_fake_logits)
 
-D_real_loss = tf.losses.sigmoid_cross_entropy(D_real_expected, D_real_logits)
+D_real_loss = tf.losses.sigmoid_cross_entropy(D_real_expected, D_real_logits,
+                                              label_smoothing=0.2)
 D_fake_loss = tf.losses.sigmoid_cross_entropy(D_fake_expected, D_fake_logits)
 D_loss = D_real_loss + D_fake_loss
 
@@ -197,4 +200,5 @@ with tf.train.MonitoredTrainingSession(checkpoint_dir=CHECKPOINT_DIR,
     while not sess.should_stop():
         for _ in range(5):
             _generator_step(sess)
-        _discriminator_step(sess)
+        for _ in range(2):
+            _discriminator_step(sess)
