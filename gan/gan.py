@@ -43,7 +43,7 @@ def generator(latent_space, label, training=True):
         # 7 x 7
         net = tf.reshape(net, [-1, 7, 7, 64])
 
-        # 14 x 14
+        # 7 x 7
         net = tf.layers.conv2d_transpose(net, 64, kernel_size=(5, 5),
                                          strides=(1, 1),
                                          activation=None,
@@ -52,6 +52,7 @@ def generator(latent_space, label, training=True):
         net = tf.layers.batch_normalization(net, training=training)
         net = tf.nn.leaky_relu(net)
 
+        # 14 x 14
         net = tf.layers.conv2d_transpose(net, 32, kernel_size=(5, 5),
                                          strides=(2, 2),
                                          activation=None,
