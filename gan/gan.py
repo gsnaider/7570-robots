@@ -23,7 +23,6 @@ GEN_VARIABLE_SCOPE = "generator"
 DISC_VARIABLE_SCOPE = "discriminator"
 
 MAX_STEPS = 1000000
-EPOCHS = 150
 
 
 def generator(latent_space, label, training=True):
@@ -131,13 +130,35 @@ def shuffle(a, b):
     assert len(a) == len(b)
     p = np.random.permutation(len(a))
     return a[p], b[p]
+  
+def _generator_step(sess):
+    latent_space_np = np.random.randn(BATCH_SIZE, LATENT_SPACE_SHAPE)
+    label = np.random.randint(10, size=BATCH_SIZE)
+    _, G_loss_np, step_value = sess.run([G_optimizer, G_loss, step],
+                            feed_dict={latent_space: latent_space_np,
+                                       G_label: label})
+    if step_value % 97 == 0:
+        print()
+        print("Step: ", sess.run(step))
+        print("G_loss: ", G_loss_np)
+
+
+def _discriminator_step(sess):
+    latent_space_np = np.random.randn(BATCH_SIZE // 2, LATENT_SPACE_SHAPE)
+    label = np.random.randint(10, size=BATCH_SIZE // 2)
+    _, D_loss_np, step_value = sess.run([D_optimizer, D_loss, step],
+                            feed_dict={latent_space: latent_space_np,
+                                       G_label: label})
+    if step_value % 97 == 0:
+        print()
+        print("Step: ", sess.run(step))
+        print("D_loss: ", D_loss_np)
 
 
 filenames, labels = _mnist_filenames_and_labels()
 filenames, labels = shuffle(np.array(filenames), np.array(labels))
 
 step = tf.train.get_or_create_global_step()
-increment_step = tf.assign(step, step + 1)
 
 dataset = tf.data.Dataset.from_tensor_slices((filenames, labels))
 dataset = dataset.map(_parse_function)
@@ -178,43 +199,19 @@ G_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                                 GEN_VARIABLE_SCOPE)
 
 G_optimizer = tf.train.AdamOptimizer(
-    learning_rate=GEN_LEARNING_RATE).minimize(G_loss, var_list=G_variables)
+    learning_rate=GEN_LEARNING_RATE).minimize(G_loss, var_list=G_variables,
+                                              global_step=tf.train.get_global_step())
 
 D_variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES,
                                 DISC_VARIABLE_SCOPE)
 
 D_optimizer = tf.train.AdamOptimizer(
-    learning_rate=DISC_LEARNING_RATE).minimize(D_loss, var_list=D_variables)
+    learning_rate=DISC_LEARNING_RATE).minimize(D_loss, var_list=D_variables,
+                                               global_step=tf.train.get_global_step())
 
 tf.summary.scalar("Gen loss", G_loss, family="Generator")
 tf.summary.scalar("Disc loss", D_loss, family="Discriminator")
 tf.summary.image("Gen images", G_images, max_outputs=1)
-
-
-def _generator_step(sess):
-    latent_space_np = np.random.randn(BATCH_SIZE, LATENT_SPACE_SHAPE)
-    label = np.random.randint(10, size=BATCH_SIZE)
-    _, G_loss_np = sess.run([G_optimizer, G_loss],
-                            feed_dict={latent_space: latent_space_np,
-                                       G_label: label})
-    if sess.run(step) % 97 == 0:
-        print()
-        print("Step: ", sess.run(step))
-        print("G_loss: ", G_loss_np)
-    sess.run(increment_step)
-
-
-def _discriminator_step(sess):
-    latent_space_np = np.random.randn(BATCH_SIZE // 2, LATENT_SPACE_SHAPE)
-    label = np.random.randint(10, size=BATCH_SIZE // 2)
-    _, D_loss_np = sess.run([D_optimizer, D_loss],
-                            feed_dict={latent_space: latent_space_np,
-                                       G_label: label})
-    if sess.run(step) % 97 == 0:
-        print()
-        print("Step: ", sess.run(step))
-        print("D_loss: ", D_loss_np)
-    sess.run(increment_step)
 
 
 hooks = [tf.train.StopAtStepHook(num_steps=MAX_STEPS)]
